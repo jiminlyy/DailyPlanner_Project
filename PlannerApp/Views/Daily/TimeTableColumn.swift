@@ -32,17 +32,6 @@ struct TimeTableColumn: View {
 
             TodoPicker(date: date, selected: $selectedTodoID)
 
-            // 임시 디버그: 현재 칠하기 모드 표시
-            if let id = selectedTodoID,
-               let todo = plan.todos.first(where: { $0.id == id }) {
-                HStack(spacing: 4) {
-                    Circle().fill(Color(hex: todo.colorHex)).frame(width: 8, height: 8)
-                    Text("칠하는 중: \(todo.title)").font(.caption2).foregroundStyle(.secondary)
-                }
-            } else {
-                Text("지우개 모드").font(.caption2).foregroundStyle(.secondary)
-            }
-
             GeometryReader { geo in
                 let cellWidth = (geo.size.width - labelWidth) / CGFloat(slotCount)
 
@@ -54,13 +43,7 @@ struct TimeTableColumn: View {
                                 .frame(width: labelWidth, alignment: .leading)
 
                             ForEach(0..<slotCount, id: \.self) { slot in
-                                let todoID = plan.timetable[hour][slot]
-                                let color = colorFor(todoID: todoID, plan: plan)
-
-                                Rectangle()
-                                    .fill(color)
-                                    .frame(height: rowHeight)
-                                    .overlay(Rectangle().stroke(.gray.opacity(0.3), lineWidth: 0.5))
+                                cell(hour: hour, slot: slot, plan: plan)
                             }
                         }
                     }
@@ -80,12 +63,53 @@ struct TimeTableColumn: View {
         }
     }
 
-    private func colorFor(todoID: UUID?, plan: DailyPlan) -> Color {
-        guard let id = todoID,
-              let todo = plan.todos.first(where: { $0.id == id }) else {
-            return .white
+    @ViewBuilder
+    private func cell(hour: Int, slot: Int, plan: DailyPlan) -> some View {
+        let todoID = plan.timetable[hour][slot]
+        let todo = todoID.flatMap { id in plan.todos.first(where: { $0.id == id }) }
+        let color = todo.map { Color(hex: $0.colorHex) } ?? .white
+
+        Rectangle()
+            .fill(color)
+            .frame(height: rowHeight)
+            .overlay(Rectangle().stroke(.gray.opacity(0.3), lineWidth: 0.5))
+            .overlay {
+                if let title = todo?.title,
+                   !title.isEmpty,
+                   isMiddleOfGroup(hour: hour, slot: slot, plan: plan) {
+                    Text(title)
+                        .font(.system(size: 9))
+                        .lineLimit(1)
+                        .fixedSize()
+                        .foregroundStyle(.primary.opacity(0.8))
+                        .allowsHitTesting(false)
+                }
+            }
+    }
+
+    /// 현재 셀이 동일 todo로 연속 칠해진 구간의 중앙(또는 그 근처)인지
+    private func isMiddleOfGroup(hour: Int, slot: Int, plan: DailyPlan) -> Bool {
+        let currentID = plan.timetable[hour][slot]
+        guard currentID != nil else { return false }
+
+        let totalSlots = rowCount * slotCount
+        let currentIdx = hour * slotCount + slot
+
+        var startIdx = currentIdx
+        while startIdx > 0 {
+            let prev = startIdx - 1
+            if plan.timetable[prev / slotCount][prev % slotCount] != currentID { break }
+            startIdx = prev
         }
-        return Color(hex: todo.colorHex)
+
+        var endIdx = currentIdx
+        while endIdx < totalSlots - 1 {
+            let next = endIdx + 1
+            if plan.timetable[next / slotCount][next % slotCount] != currentID { break }
+            endIdx = next
+        }
+
+        return currentIdx == (startIdx + endIdx) / 2
     }
 
     private func paintAt(location: CGPoint, cellWidth: CGFloat) {
@@ -97,7 +121,7 @@ struct TimeTableColumn: View {
         guard (0..<rowCount).contains(hour), (0..<slotCount).contains(slot) else { return }
 
         let cell = PaintedCell(hour: hour, slot: slot)
-        if lastPainted == cell { return }   // 같은 칸 연속 처리 방지
+        if lastPainted == cell { return }
         lastPainted = cell
         paint(hour: hour, slot: slot)
     }

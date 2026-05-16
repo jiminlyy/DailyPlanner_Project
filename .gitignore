@@ -1,0 +1,28 @@
+ø
+≈# macOS
+.DS_Store
+**/.DS_Store
+
+# Xcode user-specific
+xcuserdata/
+*.xcuserstate
+*.xcuserdatad/
+
+# Build
+build/
+DerivedData/
+*.xcworkspace/xcuserdata/
+
+# Swift Package Manager
+.swiftpm/
+Packages/
+Package.pins
+Package.resolved
+.build/
+
+# CocoaPods (사용 안 하면 무시)
+Pods/
+
+# 개인 이미지/캡쳐 (선택)
+# IMG_*.PNG
+
